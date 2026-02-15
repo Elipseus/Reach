@@ -45,24 +45,47 @@ end
 
 -- Settings
 local ExtraReach = true
-local keybindPressed = false
+local MaxReachDistance = 25 -- Default max reach distance
 
 -- UI
 local vSize = workspace.CurrentCamera.ViewportSize
 local statusText = Drawing.new("Text")
-statusText.Position = Vector2.new(10, vSize.Y - 40)
+statusText.Position = Vector2.new(10, vSize.Y - 60)
 statusText.Size = 14
 statusText.Color = Color3.fromRGB(128, 255, 128)
 statusText.Visible = true
 statusText.Outline = true
 
 local toggleButton = Drawing.new("Text")
-toggleButton.Position = Vector2.new(10, vSize.Y - 20)
+toggleButton.Position = Vector2.new(10, vSize.Y - 40)
 toggleButton.Size = 14
 toggleButton.Color = Color3.fromRGB(128, 255, 128)
 toggleButton.Visible = true
-toggleButton.Text = "[ON] ]"
+toggleButton.Text = "[ON]"
 toggleButton.Outline = true
+
+-- Slider UI
+local sliderText = Drawing.new("Text")
+sliderText.Position = Vector2.new(10, vSize.Y - 20)
+sliderText.Size = 14
+sliderText.Color = Color3.fromRGB(200, 200, 200)
+sliderText.Visible = true
+sliderText.Text = "Range: 25"
+sliderText.Outline = true
+
+local sliderBg = Drawing.new("Square")
+sliderBg.Position = Vector2.new(80, vSize.Y - 18)
+sliderBg.Size = Vector2.new(100, 10)
+sliderBg.Color = Color3.fromRGB(50, 50, 50)
+sliderBg.Filled = true
+sliderBg.Visible = true
+
+local sliderFill = Drawing.new("Square")
+sliderFill.Position = Vector2.new(80, vSize.Y - 18)
+sliderFill.Size = Vector2.new(44.4, 10) -- ~middle position for 25
+sliderFill.Color = Color3.fromRGB(128, 255, 128)
+sliderFill.Filled = true
+sliderFill.Visible = true
 
 local function mousewithindrawing(pos, size)
     local mouse = player:GetMouse()
@@ -78,22 +101,9 @@ local function MAIN()
         
         statusText.Text = name .. " | " .. (dist and math.floor(dist) or "---")
         
-        -- Keybind check with GetAsyncKeyState (] key = 0xDD)
-        if GetAsyncKeyState then
-            local keyState = GetAsyncKeyState(0xDD)
-            if keyState == 1 or keyState == -32767 then
-                if not keybindPressed then
-                    keybindPressed = true
-                    ExtraReach = not ExtraReach
-                end
-            else
-                keybindPressed = false
-            end
-        end
-        
         if ExtraReach then
             local glove = getGlove()
-            if glove and target then
+            if glove and target and dist and dist <= MaxReachDistance then
                 for _, v in pairs(glove:GetChildren()) do
                     if v.Position then
                         v.Position = target.Position
@@ -104,14 +114,43 @@ local function MAIN()
     end
 end
 
+local draggingSlider = false
 local function UI_UPDATE()
     while true do task.wait()
         toggleButton.Color = ExtraReach and Color3.fromRGB(128, 255, 128) or Color3.fromRGB(255, 128, 128)
-        toggleButton.Text = ExtraReach and "[ON] ]" or "[OFF] ]"
+        toggleButton.Text = ExtraReach and "[ON]" or "[OFF]"
         
-        if mousewithindrawing(toggleButton.Position, Vector2.new(60, 14)) and ismouse1pressed() then
+        -- Toggle button
+        if mousewithindrawing(toggleButton.Position, Vector2.new(50, 14)) and ismouse1pressed() then
             ExtraReach = not ExtraReach
             repeat wait() until not ismouse1pressed()
+        end
+        
+        -- Slider interaction
+        local mouse = player:GetMouse()
+        if mousewithindrawing(sliderBg.Position, sliderBg.Size) then
+            if ismouse1pressed() then
+                draggingSlider = true
+            end
+        end
+        
+        if not ismouse1pressed() then
+            draggingSlider = false
+        end
+        
+        if draggingSlider then
+            local relativeX = mouse.X - sliderBg.Position.X
+            relativeX = math.clamp(relativeX, 0, sliderBg.Size.X)
+            
+            -- Map slider position to range 5-50 studs in increments of 5
+            -- Values: 5, 10, 15, 20, 25, 30, 35, 40, 45, 50 (10 total values)
+            local rawValue = 5 + (relativeX / sliderBg.Size.X) * 45
+            MaxReachDistance = math.floor(rawValue / 5) * 5 -- Round to nearest 5
+            
+            -- Update slider fill to snap to increments
+            local snappedX = ((MaxReachDistance - 5) / 45) * sliderBg.Size.X
+            sliderFill.Size = Vector2.new(snappedX, 10)
+            sliderText.Text = "Range: " .. MaxReachDistance
         end
     end
 end
